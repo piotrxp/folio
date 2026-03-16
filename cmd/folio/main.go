@@ -11,6 +11,9 @@
 package main
 
 import (
+	"crypto"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"strconv"
@@ -20,6 +23,7 @@ import (
 	"github.com/carlos7ags/folio/font"
 	"github.com/carlos7ags/folio/layout"
 	"github.com/carlos7ags/folio/reader"
+	"github.com/carlos7ags/folio/sign"
 )
 
 func main() {
@@ -45,8 +49,12 @@ func main() {
 		err = cmdCreate(args)
 	case "blank":
 		err = cmdBlank(args)
+	case "extract":
+		err = cmdExtract(args)
+	case "sign":
+		err = cmdSign(args)
 	case "version":
-		fmt.Println("folio 0.1.0")
+		fmt.Println("folio 0.1.1")
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -69,6 +77,8 @@ Usage:
   folio info file.pdf
   folio pages file.pdf
   folio text file.pdf [page_number]
+  folio extract file.pdf [-page N] [-strategy simple|location]
+  folio sign -cert cert.pem -key key.pem [-o signed.pdf] input.pdf
   folio create -o output.pdf [-title "Title"] [-text "Content"]
   folio blank -o output.pdf [-size letter|a4] [-pages N]
   folio version
@@ -77,7 +87,9 @@ Commands:
   merge    Concatenate multiple PDFs into one
   info     Show PDF metadata (title, author, pages, version)
   pages    List page dimensions
-  text     Extract text from a page (1-based, default: all)
+  text     Extract text from a page (simple extraction)
+  extract  Extract text with strategy (simple, location, region)
+  sign     Digitally sign a PDF with PAdES
   create   Create a simple PDF with text content
   blank    Create a blank PDF with N pages
   version  Show folio version
@@ -341,5 +353,200 @@ func cmdBlank(args []string) error {
 	}
 
 	fmt.Printf("Created %s (%d %s pages)\n", output, pages, size)
+	return nil
+}
+
+// --- extract ---
+
+func cmdExtract(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: folio extract file.pdf [-page N] [-strategy simple|location]")
+	}
+
+	file := ""
+	pageNum := -1
+	strategy := "simple"
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-page":
+			if i+1 < len(args) {
+				pageNum, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "-strategy":
+			if i+1 < len(args) {
+				strategy = strings.ToLower(args[i+1])
+				i++
+			}
+		default:
+			if file == "" {
+				file = args[i]
+			}
+		}
+	}
+
+	if file == "" {
+		return fmt.Errorf("usage: folio extract file.pdf [-page N] [-strategy simple|location]")
+	}
+
+	r, err := reader.Open(file)
+	if err != nil {
+		return err
+	}
+
+	startPage := 0
+	endPage := r.PageCount()
+	if pageNum > 0 && pageNum <= r.PageCount() {
+		startPage = pageNum - 1
+		endPage = pageNum
+	}
+
+	for i := startPage; i < endPage; i++ {
+		page, err := r.Page(i)
+		if err != nil {
+			continue
+		}
+
+		var s reader.ExtractionStrategy
+		switch strategy {
+		case "location":
+			s = &reader.LocationStrategy{}
+		default:
+			s = &reader.SimpleStrategy{}
+		}
+
+		text, err := page.ExtractTextWithStrategy(s)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Page %d: %v\n", i+1, err)
+			continue
+		}
+
+		if endPage-startPage > 1 {
+			fmt.Printf("--- Page %d ---\n", i+1)
+		}
+		fmt.Println(strings.TrimSpace(text))
+	}
+
+	return nil
+}
+
+// --- sign ---
+
+func cmdSign(args []string) error {
+	certFile := ""
+	keyFile := ""
+	output := ""
+	input := ""
+	reason := ""
+	location := ""
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-cert":
+			if i+1 < len(args) {
+				certFile = args[i+1]
+				i++
+			}
+		case "-key":
+			if i+1 < len(args) {
+				keyFile = args[i+1]
+				i++
+			}
+		case "-o":
+			if i+1 < len(args) {
+				output = args[i+1]
+				i++
+			}
+		case "-reason":
+			if i+1 < len(args) {
+				reason = args[i+1]
+				i++
+			}
+		case "-location":
+			if i+1 < len(args) {
+				location = args[i+1]
+				i++
+			}
+		default:
+			if input == "" {
+				input = args[i]
+			}
+		}
+	}
+
+	if input == "" || certFile == "" || keyFile == "" {
+		return fmt.Errorf("usage: folio sign -cert cert.pem -key key.pem [-o signed.pdf] input.pdf")
+	}
+
+	if output == "" {
+		output = strings.TrimSuffix(input, ".pdf") + "_signed.pdf"
+	}
+
+	// Read PDF.
+	pdfBytes, err := os.ReadFile(input)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", input, err)
+	}
+
+	// Load certificate.
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		return fmt.Errorf("read cert %s: %w", certFile, err)
+	}
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil {
+		return fmt.Errorf("no PEM block found in %s", certFile)
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return fmt.Errorf("parse cert: %w", err)
+	}
+
+	// Load private key.
+	keyPEM, err := os.ReadFile(keyFile)
+	if err != nil {
+		return fmt.Errorf("read key %s: %w", keyFile, err)
+	}
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		return fmt.Errorf("no PEM block found in %s", keyFile)
+	}
+	key, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		// Try PKCS1 as fallback.
+		key, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+		if err != nil {
+			return fmt.Errorf("parse key: %w", err)
+		}
+	}
+
+	// Create signer.
+	cryptoKey, ok := key.(crypto.Signer)
+	if !ok {
+		return fmt.Errorf("private key does not implement crypto.Signer")
+	}
+	signer, err := sign.NewLocalSigner(cryptoKey, []*x509.Certificate{cert})
+	if err != nil {
+		return fmt.Errorf("create signer: %w", err)
+	}
+
+	// Sign.
+	opts := sign.Options{
+		Signer:   signer,
+		Reason:   reason,
+		Location: location,
+	}
+
+	signed, err := sign.SignPDF(pdfBytes, opts)
+	if err != nil {
+		return fmt.Errorf("sign: %w", err)
+	}
+
+	if err := os.WriteFile(output, signed, 0644); err != nil {
+		return err
+	}
+
+	fmt.Printf("Signed %s → %s\n", input, output)
 	return nil
 }

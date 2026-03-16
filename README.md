@@ -120,6 +120,7 @@ doc.Add(box)
 
 ```go
 tbl := layout.NewTable().SetAutoColumnWidths()
+tbl.SetBorderCollapse(true)
 
 // Or explicit widths with units
 tbl.SetColumnUnitWidths([]layout.UnitValue{layout.Pct(30), layout.Pct(70)})
@@ -129,8 +130,9 @@ h := tbl.AddHeaderRow()
 h.AddCell("Name", font.HelveticaBold, 10)
 h.AddCell("Value", font.HelveticaBold, 10)
 
-// Borders: solid, dashed, dotted, double
-cell := r.AddCell("Styled", font.Helvetica, 10)
+// Cell styling
+row := tbl.AddRow()
+cell := row.AddCell("Styled", font.Helvetica, 10)
 cell.SetBorders(layout.AllBorders(layout.DashedBorder(1, layout.ColorBlue)))
 cell.SetBackground(layout.ColorLightGray)
 cell.SetVAlign(layout.VAlignMiddle)
@@ -319,6 +321,8 @@ folio merge -o combined.pdf doc1.pdf doc2.pdf
 folio info document.pdf
 folio pages document.pdf
 folio text document.pdf
+folio extract document.pdf -strategy location
+folio sign -cert cert.pem -key key.pem document.pdf
 folio create -o hello.pdf -title "Hello" -text "World"
 folio blank -o empty.pdf -size a4 -pages 5
 ```
@@ -350,6 +354,7 @@ folio/
   barcode/     Code128, QR, EAN-13
   forms/       AcroForms (text, checkbox, radio, dropdown, signature)
   html/        HTML + CSS to PDF conversion
+  svg/         SVG to PDF rendering
   sign/        Digital signatures (PAdES, CMS, timestamps)
   reader/      PDF parser (read, extract, merge)
   cmd/folio/   CLI tool
