@@ -13,24 +13,6 @@ forms, digital signatures, barcodes, and PDF/A compliance.
 
 ---
 
-## Why Folio
-
-| | Folio | iText | Puppeteer | gofpdf |
-|---|---|---|---|---|
-| License | Apache 2.0 | AGPL / commercial | Apache 2.0 | MIT (archived) |
-| Language | Go | Java / .NET | Node.js | Go |
-| Layout engine | Yes | Yes (mature) | HTML/CSS | Manual |
-| HTML to PDF | Partial | Yes | Yes (full CSS) | No |
-| Digital signatures | Basic | Yes (enterprise) | No | No |
-| PDF/A compliance | Yes | Yes | No | No |
-| AcroForms | Yes | Yes | No | No |
-| PDF reading/merge | Yes | Yes | No | No |
-| Runtime deps | None | JVM | Chrome/Chromium | None |
-| WASM support | Yes | No | No | No |
-| Maintained | Active | Active (funded) | Active (Google) | No (2021) |
-
----
-
 ## Install
 
 ```bash
