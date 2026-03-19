@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-19
+
+### Added
+- **WOFF1 font decoding** — `@font-face` now supports `.woff` files via automatic format detection (`font.LoadFont`)
+- **CSS custom properties (variables)** — `--name: value` declarations with `var(--name, fallback)` resolution, inheritance, and nesting
+- **CSS counters** — `counter-reset`, `counter-increment`, `counter()` and `counters()` in `::before`/`::after` content
+- **CSS `clear` property** — `clear: left/right/both` advances past active floats before placing elements
+- **CSS `border-spacing`** — horizontal and vertical cell spacing for tables in separate border model
+- **HTTP background images** — `background-image: url('https://...')` fetches remote images in non-WASM builds
+- **Inline-block in text flow** — `display: inline-block` elements flow within paragraphs as "big words" with correct line-breaking and height expansion
+- **Containing-block absolute positioning** — `position: absolute` resolves against nearest positioned ancestor via overlay children, not just the page
+- **Liang-Knuth hyphenation** — 4938 TeX US English patterns for linguistically correct syllable breaks, replacing geometric character splitting
+- **C ABI export layer** — `export/` package for FFI from Python, Ruby, Swift, etc.
+- **Full sRGB ICC profile** and PDF/A-1b compliance support
+- **QR code v1-40** with numeric/alphanumeric encoding modes
+- **Symbol and ZapfDingbats** font width tables
+
+### Changed
+- `font.LoadTTF` calls in HTML converter replaced with `font.LoadFont` (auto-detects TTF/OTF/WOFF)
+- `hyphenateWord()` uses pattern-based breaks first, falls back to character splitting
+
+## [0.3.0] - 2026-03-18
+
+### Added
+- **CSS Grid layout** — `display: grid` with `grid-template-columns`, `grid-template-rows`, `grid-template-areas`, named areas, `auto-rows`, alignment (`justify-items`, `align-items`), and page break support
+- **Absolute positioning with z-index** — `position: absolute` elements ordered by `z-index`
+- **`margin-left: auto` right-alignment** for inline-block SVGs in flex containers
+
+### Fixed
+- Flex width double-resolution when both `widthUnit` and percentage were set
+- Inline-block SVGs disappearing due to missing width propagation
+
 ## [0.2.0] - 2026-03-17
 
 ### Added
