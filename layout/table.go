@@ -248,6 +248,8 @@ type Table struct {
 	borderCollapse bool        // if true, collapse adjacent cell borders
 	minWidth       float64     // minimum total table width (0 = no minimum)
 	minWidthUnit   *UnitValue  // lazy-resolved min-width (overrides minWidth when set)
+	cellSpacingH   float64     // horizontal spacing between cells (CSS border-spacing)
+	cellSpacingV   float64     // vertical spacing between cells (CSS border-spacing)
 }
 
 // NewTable creates a new empty table.
@@ -276,6 +278,44 @@ func (t *Table) SetBorderCollapse(enabled bool) *Table {
 // BorderCollapse reports whether border-collapse is enabled.
 func (t *Table) BorderCollapse() bool {
 	return t.borderCollapse
+}
+
+// SetCellSpacing sets horizontal and vertical spacing between cells,
+// corresponding to the CSS border-spacing property. Spacing is added
+// between adjacent cells and at the table edges. Ignored when
+// border-collapse is enabled.
+func (t *Table) SetCellSpacing(h, v float64) *Table {
+	t.cellSpacingH = h
+	t.cellSpacingV = v
+	return t
+}
+
+// effectiveSpacingH returns the horizontal cell spacing, or 0 when
+// border-collapse is active.
+func (t *Table) effectiveSpacingH() float64 {
+	if t.borderCollapse {
+		return 0
+	}
+	return t.cellSpacingH
+}
+
+// effectiveSpacingV returns the vertical cell spacing, or 0 when
+// border-collapse is active.
+func (t *Table) effectiveSpacingV() float64 {
+	if t.borderCollapse {
+		return 0
+	}
+	return t.cellSpacingV
+}
+
+// totalSpacingH returns the total horizontal space consumed by cell spacing.
+// For N columns there are N+1 gaps (left edge, between each pair, right edge).
+func (t *Table) totalSpacingH(nCols int) float64 {
+	sh := t.effectiveSpacingH()
+	if sh == 0 || nCols == 0 {
+		return 0
+	}
+	return float64(nCols+1) * sh
 }
 
 // SetMinWidth sets the minimum total table width in points.
@@ -366,14 +406,20 @@ func (t *Table) resolveColWidths(maxWidth float64) []float64 {
 		return nil
 	}
 
+	// Subtract horizontal cell spacing so columns fill the remaining space.
+	availW := maxWidth - t.totalSpacingH(nCols)
+	if availW < 0 {
+		availW = 0
+	}
+
 	// Auto-sizing from cell content.
 	if t.autoWidths {
-		return t.computeAutoWidths(nCols, maxWidth)
+		return t.computeAutoWidths(nCols, availW)
 	}
 
 	// UnitValue widths (supports mixed point/percent).
 	if len(t.colUnitWidths) >= nCols {
-		return ResolveAll(t.colUnitWidths[:nCols], maxWidth)
+		return ResolveAll(t.colUnitWidths[:nCols], availW)
 	}
 
 	// Explicit point widths.
@@ -382,7 +428,7 @@ func (t *Table) resolveColWidths(maxWidth float64) []float64 {
 	}
 
 	// Equal distribution.
-	w := maxWidth / float64(nCols)
+	w := availW / float64(nCols)
 	widths := make([]float64, nCols)
 	for i := range widths {
 		widths[i] = w
@@ -729,16 +775,20 @@ func (t *Table) Layout(maxWidth float64) []Line {
 	if t.borderCollapse {
 		collapseBorders(grid)
 	}
-	totalH := 0.0
-	for _, gr := range grid {
-		totalH += gr.height
-	}
+
+	sv := t.effectiveSpacingV()
 
 	// Return one "line" per grid row so the renderer can page-break between rows.
+	// Each line's height includes the spacing gap before the row (and the
+	// bottom-edge gap is added to the last row).
 	lines := make([]Line, len(grid))
 	for i, gr := range grid {
+		h := gr.height + sv // gap before this row
+		if i == len(grid)-1 {
+			h += sv // bottom edge after last row
+		}
 		lines[i] = Line{
-			Height: gr.height,
+			Height: h,
 			IsLast: i == len(grid)-1,
 			Align:  AlignLeft,
 			tableRow: &tableRowRef{
@@ -792,6 +842,8 @@ func (t *Table) PlanLayout(area LayoutArea) LayoutPlan {
 
 	bodyEnd := len(grid) - footerRowCount // index where body rows end
 
+	sv := t.effectiveSpacingV()
+
 	// Build blocks row by row, checking height.
 	var blocks []PlacedBlock
 	curY := 0.0
@@ -802,6 +854,10 @@ func (t *Table) PlanLayout(area LayoutArea) LayoutPlan {
 		if gr.isFooter {
 			continue
 		}
+
+		// Add vertical spacing before this row.
+		curY += sv
+
 		// Check if this body row fits (reserve space for footer if splitting).
 		needsFooter := footerRowCount > 0 && i > headerRowCount
 		reserveH := 0.0
@@ -817,16 +873,20 @@ func (t *Table) PlanLayout(area LayoutArea) LayoutPlan {
 		capturedRowIdx := i
 		capturedColWidths := colWidths
 		capturedMaxW := area.Width
+		capturedTable := t
 
 		blocks = append(blocks, PlacedBlock{
 			X: 0, Y: curY, Width: area.Width, Height: gr.height,
 			Tag: "TR",
 			Draw: func(ctx DrawContext, absX, absTopY float64) {
-				drawTableRowDirect(ctx, capturedGrid, capturedRowIdx, capturedColWidths, capturedMaxW, absX, absTopY)
+				drawTableRowDirect(ctx, capturedTable, capturedGrid, capturedRowIdx, capturedColWidths, capturedMaxW, absX, absTopY)
 			},
 		})
 		curY += gr.height
 	}
+
+	// Bottom edge spacing after last body row.
+	curY += sv
 
 	// Append footer rows at the bottom (whether splitting or not).
 	if footerRowCount > 0 {
@@ -836,12 +896,13 @@ func (t *Table) PlanLayout(area LayoutArea) LayoutPlan {
 			capturedRowIdx := i
 			capturedColWidths := colWidths
 			capturedMaxW := area.Width
+			capturedTable := t
 
 			blocks = append(blocks, PlacedBlock{
 				X: 0, Y: curY, Width: area.Width, Height: gr.height,
 				Tag: "TR",
 				Draw: func(ctx DrawContext, absX, absTopY float64) {
-					drawTableRowDirect(ctx, capturedGrid, capturedRowIdx, capturedColWidths, capturedMaxW, absX, absTopY)
+					drawTableRowDirect(ctx, capturedTable, capturedGrid, capturedRowIdx, capturedColWidths, capturedMaxW, absX, absTopY)
 				},
 			})
 			curY += gr.height
@@ -865,7 +926,13 @@ func (t *Table) PlanLayout(area LayoutArea) LayoutPlan {
 	}
 
 	// Build overflow table with header + footer rows + remaining data rows.
-	overflowTable := &Table{colWidths: t.colWidths, colUnitWidths: t.colUnitWidths}
+	overflowTable := &Table{
+		colWidths:      t.colWidths,
+		colUnitWidths:  t.colUnitWidths,
+		borderCollapse: t.borderCollapse,
+		cellSpacingH:   t.cellSpacingH,
+		cellSpacingV:   t.cellSpacingV,
+	}
 	// Re-add header rows.
 	for _, row := range t.rows {
 		if row.isHeader {
@@ -1031,13 +1098,17 @@ func (l *Line) IsTable() bool {
 
 // drawTableRowDirect renders a table row directly using draw.go functions,
 // without going through the old Renderer emit methods.
-func drawTableRowDirect(ctx DrawContext, grid []gridRow, rowIndex int, colWidths []float64, maxWidth, x, topY float64) {
+func drawTableRowDirect(ctx DrawContext, tbl *Table, grid []gridRow, rowIndex int, colWidths []float64, maxWidth, x, topY float64) {
 	gr := grid[rowIndex]
 
+	sh := tbl.effectiveSpacingH()
+
 	for _, gc := range gr.cells {
-		cellX := x
+		// Start after the left-edge spacing gap, then advance past
+		// each preceding column plus its inter-column gap.
+		cellX := x + sh
 		for c := range gc.col {
-			cellX += colWidths[c]
+			cellX += colWidths[c] + sh
 		}
 		cellBottomY := topY - gr.height
 

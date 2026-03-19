@@ -603,3 +603,139 @@ func TestTableZeroWidthColumn(t *testing.T) {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
 }
+
+// --- border-spacing tests ---
+
+func TestTableCellSpacingColumnWidths(t *testing.T) {
+	// With 2 columns and 5pt horizontal spacing, 3 gaps (left, between, right)
+	// consume 15pt, leaving 385pt for 2 columns = 192.5pt each.
+	tbl := NewTable()
+	tbl.SetCellSpacing(5, 0)
+	r := tbl.AddRow()
+	r.AddCell("A", font.Helvetica, 10)
+	r.AddCell("B", font.Helvetica, 10)
+
+	widths := tbl.resolveColWidths(400)
+	if len(widths) != 2 {
+		t.Fatalf("expected 2 widths, got %d", len(widths))
+	}
+	expected := (400.0 - 3*5.0) / 2.0 // 192.5
+	if math.Abs(widths[0]-expected) > 0.01 {
+		t.Errorf("expected column width %.2f, got %.2f", expected, widths[0])
+	}
+	if math.Abs(widths[1]-expected) > 0.01 {
+		t.Errorf("expected column width %.2f, got %.2f", expected, widths[1])
+	}
+}
+
+func TestTableCellSpacingVerticalHeight(t *testing.T) {
+	// 2 rows with 10pt vertical spacing: 3 gaps (top, between, bottom) = 30pt.
+	// Each row is about 20pt (10pt*1.2 + 2*4pt padding).
+	// Total height via Layout lines should include spacing.
+	tbl := NewTable()
+	tbl.SetCellSpacing(0, 10)
+	for range 2 {
+		r := tbl.AddRow()
+		r.AddCell("X", font.Helvetica, 10)
+	}
+
+	lines := tbl.Layout(400)
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(lines))
+	}
+
+	totalH := 0.0
+	for _, l := range lines {
+		totalH += l.Height
+	}
+
+	// Without spacing, total would be ~40pt. With 3 gaps of 10pt each, ~70pt.
+	rowH := 10.0*1.2 + 2*4.0 // 20pt per row
+	expectedTotal := 2*rowH + 3*10.0
+	if math.Abs(totalH-expectedTotal) > 0.1 {
+		t.Errorf("expected total height ~%.1f, got %.1f", expectedTotal, totalH)
+	}
+}
+
+func TestTableCellSpacingPlanLayout(t *testing.T) {
+	// Verify PlanLayout positions rows with spacing gaps.
+	tbl := NewTable()
+	tbl.SetCellSpacing(0, 10)
+	for range 2 {
+		r := tbl.AddRow()
+		r.AddCell("X", font.Helvetica, 10)
+	}
+
+	plan := tbl.PlanLayout(LayoutArea{Width: 400, Height: 1000})
+	if plan.Status != LayoutFull {
+		t.Fatalf("expected LayoutFull, got %d", plan.Status)
+	}
+
+	// The outer Table block wraps all TR blocks.
+	if len(plan.Blocks) != 1 || plan.Blocks[0].Tag != "Table" {
+		t.Fatal("expected a single Table wrapper block")
+	}
+	rowBlocks := plan.Blocks[0].Children
+	if len(rowBlocks) != 2 {
+		t.Fatalf("expected 2 row blocks, got %d", len(rowBlocks))
+	}
+
+	// First row should be at Y = 10 (top spacing gap).
+	if math.Abs(rowBlocks[0].Y-10) > 0.01 {
+		t.Errorf("first row Y: expected 10, got %.2f", rowBlocks[0].Y)
+	}
+
+	// Second row should be at Y = 10 + rowH + 10.
+	rowH := rowBlocks[0].Height
+	expectedY2 := 10 + rowH + 10
+	if math.Abs(rowBlocks[1].Y-expectedY2) > 0.01 {
+		t.Errorf("second row Y: expected %.2f, got %.2f", expectedY2, rowBlocks[1].Y)
+	}
+
+	// Consumed height should include bottom spacing.
+	expectedConsumed := 10 + rowH + 10 + rowH + 10
+	if math.Abs(plan.Consumed-expectedConsumed) > 0.01 {
+		t.Errorf("consumed: expected %.2f, got %.2f", expectedConsumed, plan.Consumed)
+	}
+}
+
+func TestTableCellSpacingIgnoredWithCollapse(t *testing.T) {
+	// When border-collapse is enabled, spacing should be ignored.
+	tbl := NewTable()
+	tbl.SetCellSpacing(10, 10)
+	tbl.SetBorderCollapse(true)
+	r := tbl.AddRow()
+	r.AddCell("A", font.Helvetica, 10)
+	r.AddCell("B", font.Helvetica, 10)
+
+	// Column widths should not be reduced by spacing.
+	widths := tbl.resolveColWidths(400)
+	if len(widths) != 2 {
+		t.Fatalf("expected 2 widths, got %d", len(widths))
+	}
+	if math.Abs(widths[0]-200) > 0.01 {
+		t.Errorf("expected column width 200 (collapse ignores spacing), got %.2f", widths[0])
+	}
+
+	// Total height via Layout should not include any spacing gaps.
+	lines := tbl.Layout(400)
+	totalH := 0.0
+	for _, l := range lines {
+		totalH += l.Height
+	}
+	rowH := 10.0*1.2 + 2*4.0
+	if math.Abs(totalH-rowH) > 0.1 {
+		t.Errorf("expected height ~%.1f (no spacing), got %.1f", rowH, totalH)
+	}
+}
+
+func TestTableCellSpacingSetMethod(t *testing.T) {
+	tbl := NewTable()
+	ret := tbl.SetCellSpacing(5, 8)
+	if ret != tbl {
+		t.Error("SetCellSpacing should return the table for chaining")
+	}
+	if tbl.cellSpacingH != 5 || tbl.cellSpacingV != 8 {
+		t.Errorf("expected spacing 5/8, got %.1f/%.1f", tbl.cellSpacingH, tbl.cellSpacingV)
+	}
+}

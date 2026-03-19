@@ -1575,6 +1575,9 @@ func (c *converter) convertCSSTable(n *html.Node, style computedStyle) []layout.
 	if style.BorderCollapse == "collapse" {
 		tbl.SetBorderCollapse(true)
 	}
+	if style.BorderSpacingH > 0 || style.BorderSpacingV > 0 {
+		tbl.SetCellSpacing(style.BorderSpacingH, style.BorderSpacingV)
+	}
 
 	// Apply CSS width as table minimum width.
 	if style.Width != nil {
@@ -1682,6 +1685,9 @@ func (c *converter) convertTable(n *html.Node, style computedStyle) []layout.Ele
 	collapse := style.BorderCollapse == "collapse"
 	if collapse {
 		tbl.SetBorderCollapse(true)
+	}
+	if style.BorderSpacingH > 0 || style.BorderSpacingV > 0 {
+		tbl.SetCellSpacing(style.BorderSpacingH, style.BorderSpacingV)
 	}
 
 	// Collect <col> widths from <colgroup>/<col> elements.
@@ -2947,6 +2953,23 @@ func (c *converter) applyProperty(prop, val string, style *computedStyle) {
 		if v == "collapse" || v == "separate" {
 			style.BorderCollapse = v
 		}
+	case "border-spacing":
+		// Supports: "5px" (both) or "5px 10px" (horizontal vertical).
+		parts := strings.Fields(strings.TrimSpace(val))
+		if len(parts) == 1 {
+			if l := parseLength(parts[0]); l != nil {
+				v := l.toPoints(0, style.FontSize)
+				style.BorderSpacingH = v
+				style.BorderSpacingV = v
+			}
+		} else if len(parts) >= 2 {
+			if lh := parseLength(parts[0]); lh != nil {
+				style.BorderSpacingH = lh.toPoints(0, style.FontSize)
+			}
+			if lv := parseLength(parts[1]); lv != nil {
+				style.BorderSpacingV = lv.toPoints(0, style.FontSize)
+			}
+		}
 	case "vertical-align":
 		v := strings.TrimSpace(strings.ToLower(val))
 		if v == "top" || v == "middle" || v == "bottom" || v == "super" || v == "sub" || v == "baseline" || v == "text-top" || v == "text-bottom" {
@@ -3968,14 +3991,22 @@ func (c *converter) resolveBackgroundImage(style computedStyle) *layout.Backgrou
 	switch kind {
 	case "url":
 		imgPath := inner
-		if !filepath.IsAbs(imgPath) && c.opts.BasePath != "" {
-			imgPath = filepath.Join(c.opts.BasePath, imgPath)
+		if strings.HasPrefix(imgPath, "http://") || strings.HasPrefix(imgPath, "https://") {
+			loaded, err := fetchImage(imgPath)
+			if err != nil {
+				return nil
+			}
+			img = loaded
+		} else {
+			if !filepath.IsAbs(imgPath) && c.opts.BasePath != "" {
+				imgPath = filepath.Join(c.opts.BasePath, imgPath)
+			}
+			loaded, err := loadImage(imgPath)
+			if err != nil {
+				return nil
+			}
+			img = loaded
 		}
-		loaded, err := loadImage(imgPath)
-		if err != nil {
-			return nil
-		}
-		img = loaded
 
 	case "linear-gradient":
 		angle, stops := parseLinearGradient(inner)

@@ -118,8 +118,10 @@ type computedStyle struct {
 	Widows  int // minimum lines at top of page (0 = not set)
 
 	// Table
-	BorderCollapse string // "separate", "collapse"
-	VerticalAlign  string // "top", "middle", "bottom" (for table cells)
+	BorderCollapse  string  // "separate", "collapse"
+	BorderSpacingH  float64 // horizontal border-spacing (points)
+	BorderSpacingV  float64 // vertical border-spacing (points)
+	VerticalAlign   string  // "top", "middle", "bottom" (for table cells)
 
 	// Visual effects
 	BorderRadius float64 // corner radius (points, 0 = sharp)

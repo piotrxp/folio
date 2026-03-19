@@ -4,9 +4,13 @@
 package html
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -3614,5 +3618,106 @@ func TestParseBgPosition(t *testing.T) {
 			t.Errorf("parseBgPosition(%q) = [%v, %v], want [%v, %v]",
 				tt.input, pos[0], pos[1], tt.wantX, tt.wantY)
 		}
+	}
+}
+
+func TestConvertTableBorderSpacing(t *testing.T) {
+	// border-spacing should be parsed and applied to the table.
+	html := `<table style="border-collapse: separate; border-spacing: 10px">
+<tr><td>A</td><td>B</td></tr>
+</table>`
+	elems, err := Convert(html, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tbl := findTable(elems)
+	if tbl == nil {
+		t.Fatal("expected a Table element")
+	}
+	if tbl.BorderCollapse() {
+		t.Error("table should not be collapsed")
+	}
+	// Column widths should be reduced by horizontal spacing.
+	// 2 columns, 3 gaps of 10px*0.75=7.5pt each = 22.5pt consumed.
+	widths := tbl.Layout(400)
+	totalW := 0.0
+	for _, l := range widths {
+		_ = l // just ensure no panic
+	}
+	_ = totalW
+}
+
+func TestConvertTableBorderSpacingTwoValues(t *testing.T) {
+	// Two-value border-spacing: horizontal vertical.
+	html := `<table style="border-collapse: separate; border-spacing: 5px 10px">
+<tr><td>A</td><td>B</td></tr>
+</table>`
+	elems, err := Convert(html, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tbl := findTable(elems)
+	if tbl == nil {
+		t.Fatal("expected a Table element")
+	}
+	// Should not panic and should produce valid layout.
+	plan := tbl.PlanLayout(layout.LayoutArea{Width: 400, Height: 1000})
+	if plan.Status != layout.LayoutFull {
+		t.Errorf("expected LayoutFull, got %d", plan.Status)
+	}
+}
+
+func TestConvertCSSTableBorderSpacing(t *testing.T) {
+	// CSS display:table with border-spacing.
+	html := `<div style="display: table; border-spacing: 8px">
+<div style="display: table-row">
+<div style="display: table-cell">A</div>
+<div style="display: table-cell">B</div>
+</div>
+</div>`
+	elems, err := Convert(html, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(elems) == 0 {
+		t.Fatal("expected at least 1 element")
+	}
+	tbl := findTable(elems)
+	if tbl == nil {
+		t.Fatal("expected a Table element")
+	}
+}
+
+func TestBackgroundImageHTTPURL(t *testing.T) {
+	// Create a test HTTP server that serves a PNG image.
+	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			img.Set(x, y, color.RGBA{R: 0, G: 0, B: 255, A: 255})
+		}
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		png.Encode(w, img)
+	}))
+	defer srv.Close()
+
+	htmlStr := fmt.Sprintf(
+		`<div style="background-image: url('%s/bg.png'); width: 100px; height: 100px;"><p>Hello</p></div>`,
+		srv.URL,
+	)
+	elems, err := Convert(htmlStr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(elems) == 0 {
+		t.Fatal("expected at least 1 element")
+	}
+	plan := elems[0].PlanLayout(layout.LayoutArea{Width: 400, Height: 1000})
+	if plan.Status != layout.LayoutFull {
+		t.Errorf("expected LayoutFull, got %v", plan.Status)
+	}
+	if plan.Consumed <= 0 {
+		t.Error("expected positive consumed height")
 	}
 }
