@@ -155,7 +155,7 @@ func ConvertFull(htmlStr string, opts *Options) (*ConvertResult, error) {
 		if !filepath.IsAbs(path) && o.BasePath != "" {
 			path = filepath.Join(o.BasePath, path)
 		}
-		face, err := font.LoadTTF(path)
+		face, err := font.LoadFont(path)
 		if err != nil {
 			continue
 		}
@@ -203,7 +203,7 @@ func Convert(htmlStr string, opts *Options) ([]layout.Element, error) {
 		if !filepath.IsAbs(path) && o.BasePath != "" {
 			path = filepath.Join(o.BasePath, path)
 		}
-		face, err := font.LoadTTF(path)
+		face, err := font.LoadFont(path)
 		if err != nil {
 			continue // silently skip unloadable fonts
 		}
@@ -240,7 +240,7 @@ func (c *converter) getFallbackFont() *font.EmbeddedFont {
 
 	// Try user-specified path first.
 	if c.opts.FallbackFontPath != "" {
-		if face, err := font.LoadTTF(c.opts.FallbackFontPath); err == nil {
+		if face, err := font.LoadFont(c.opts.FallbackFontPath); err == nil {
 			c.fallbackFont = font.NewEmbeddedFont(face)
 			return c.fallbackFont
 		}
@@ -262,7 +262,7 @@ func (c *converter) getFallbackFont() *font.EmbeddedFont {
 		`C:\Windows\Fonts\segoeui.ttf`,
 	}
 	for _, path := range candidates {
-		if face, err := font.LoadTTF(path); err == nil {
+		if face, err := font.LoadFont(path); err == nil {
 			c.fallbackFont = font.NewEmbeddedFont(face)
 			return c.fallbackFont
 		}
