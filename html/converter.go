@@ -1387,6 +1387,9 @@ func applyDivStyles(div *layout.Div, style computedStyle, containerWidth float64
 	if style.BorderRadius > 0 {
 		div.SetBorderRadius(style.BorderRadius)
 	}
+	if style.Clear != "" && style.Clear != "none" {
+		div.SetClear(style.Clear)
+	}
 	if style.Opacity > 0 && style.Opacity < 1 {
 		div.SetOpacity(style.Opacity)
 	}

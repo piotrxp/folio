@@ -71,6 +71,7 @@ type Div struct {
 	outlineColor  Color
 	outlineOffset float64
 	bgImage       *BackgroundImage
+	clear         string // CSS clear: "left", "right", "both"
 
 	// CSS position:relative offsets (visual only, don't affect layout flow).
 	relOffsetX float64
@@ -241,6 +242,12 @@ func (d *Div) ClearHeightUnit() {
 
 // HasExplicitHeight returns true if the Div has an explicit CSS height set.
 func (d *Div) HasExplicitHeight() bool { return d.heightUnit != nil }
+
+// SetClear sets the CSS clear property ("left", "right", "both").
+func (d *Div) SetClear(v string) *Div { d.clear = v; return d }
+
+// ClearValue returns the CSS clear value.
+func (d *Div) ClearValue() string { return d.clear }
 
 // SetHCenter enables horizontal centering (margin: 0 auto behavior).
 func (d *Div) SetHCenter(enabled bool) *Div {

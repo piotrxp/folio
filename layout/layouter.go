@@ -117,6 +117,11 @@ func maxBlockWidth(blocks []PlacedBlock) float64 {
 
 // Measurable is an optional interface that elements can implement
 // to report their intrinsic width constraints. This enables features
+// Clearable is implemented by elements that support the CSS clear property.
+type Clearable interface {
+	ClearValue() string // "left", "right", "both", or ""
+}
+
 // HeightSettable is implemented by elements that can have their height
 // forced before layout (used by flex cross-axis stretching).
 type HeightSettable interface {

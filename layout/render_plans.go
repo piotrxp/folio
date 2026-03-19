@@ -155,6 +155,26 @@ func (r *Renderer) renderWithPlans() []PageResult {
 			continue
 		}
 
+		// CSS clear: advance past active floats before placing this element.
+		if cl, ok := elem.(Clearable); ok {
+			cv := cl.ClearValue()
+			if cv == "left" || cv == "right" || cv == "both" {
+				maxRemain := 0.0
+				for _, f := range floats {
+					if cv == "both" || (cv == "left" && f.side == FloatLeft) || (cv == "right" && f.side == FloatRight) {
+						if f.remainHeight > maxRemain {
+							maxRemain = f.remainHeight
+						}
+					}
+				}
+				if maxRemain > 0 {
+					curY += maxRemain
+					remainingHeight -= maxRemain
+					consumeFloatHeight(maxRemain)
+				}
+			}
+		}
+
 		availWidth, leftOffset := effectiveWidth()
 		area := LayoutArea{
 			Width:  availWidth,
