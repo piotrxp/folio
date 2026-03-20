@@ -1,3 +1,6 @@
+// Copyright 2026 Carlos Munoz and the Folio Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Command folio is a CLI tool for PDF operations.
 //
 // Usage:
