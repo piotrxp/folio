@@ -760,6 +760,12 @@ func (p *Paragraph) PlanLayout(area LayoutArea) LayoutPlan {
 }
 
 // measureWords flattens all runs into measured words.
+//
+// When a run's text starts with punctuation and no leading whitespace
+// (e.g. ". Then" after a bold run), the leading punctuation characters
+// are appended to the last word of the previous run. This produces
+// "here." as one word instead of "here" + "." as two, matching standard
+// typographic behavior at style boundaries.
 func (p *Paragraph) measureWords(maxWidth float64) ([]Word, float64) {
 	var measured []Word
 	var maxFontSize float64
@@ -767,7 +773,27 @@ func (p *Paragraph) measureWords(maxWidth float64) ([]Word, float64) {
 	for _, run := range p.runs {
 		measurer := runMeasurer(run)
 		spaceW := measurer.MeasureString(" ", run.FontSize) + run.WordSpacing
-		words := splitWords(run.Text)
+		text := run.Text
+
+		// If the run starts with punctuation (no leading space) and we
+		// already have words, append the punctuation to the previous word.
+		// The punctuation renders in the previous word's font, which is
+		// visually correct — "here." should look like one word.
+		if len(measured) > 0 && len(text) > 0 && !isSpace(rune(text[0])) {
+			punct, rest := splitLeadingPunct(text)
+			if punct != "" {
+				prev := &measured[len(measured)-1]
+				prev.Text += punct
+				prevMeasurer := wordMeasurer(*prev)
+				prev.Width = prevMeasurer.MeasureString(prev.Text, prev.FontSize)
+				if prev.LetterSpacing != 0 {
+					prev.Width += prev.LetterSpacing * float64(len([]rune(prev.Text))-1)
+				}
+				text = rest
+			}
+		}
+
+		words := splitWords(text)
 		for _, w := range words {
 			wordW := measurer.MeasureString(w, run.FontSize)
 			if run.LetterSpacing != 0 && len([]rune(w)) > 1 {
@@ -797,6 +823,47 @@ func (p *Paragraph) measureWords(maxWidth float64) ([]Word, float64) {
 
 	measured = breakLongWords(measured, maxWidth)
 	return measured, maxFontSize
+}
+
+// splitLeadingPunct splits a string into a leading punctuation prefix
+// and the remainder. Returns ("", s) if s does not start with punctuation.
+func splitLeadingPunct(s string) (punct, rest string) {
+	i := 0
+	for _, r := range s {
+		if isPunctuation(r) {
+			i += len(string(r))
+		} else {
+			break
+		}
+	}
+	if i == 0 {
+		return "", s
+	}
+	return s[:i], s[i:]
+}
+
+// isPunctuation reports whether r is a punctuation character that should
+// attach to the preceding word rather than stand alone.
+func isPunctuation(r rune) bool {
+	switch r {
+	case '.', ',', ';', ':', '!', '?', ')', ']', '}', '"', '\'',
+		'\u2019', '\u201D': // right single/double quotes
+		return true
+	}
+	return false
+}
+
+// isSpace reports whether r is a whitespace character.
+func isSpace(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
+}
+
+// wordMeasurer returns a TextMeasurer for the given word's font.
+func wordMeasurer(w Word) font.TextMeasurer {
+	if w.Embedded != nil {
+		return w.Embedded
+	}
+	return w.Font
 }
 
 // wrapWords performs greedy word-wrapping, returning groups of words per line.
