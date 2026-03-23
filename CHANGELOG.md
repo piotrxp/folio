@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-03-22
+
+### Added
+- **Clickable links in PDFs** — `<a href="...">` inside paragraphs, headings, and list items now produce PDF link annotations (#23, #26, #27)
+- **Multiple links per line** — paragraphs with several inline links each get their own precise annotation rectangle
+- **Internal document links** — `layout.NewInternalLink` resolves to direct page references for macOS Preview compatibility
+- **Layout API link support** — `TextRun.WithLinkURI()` and `WithDecoration()` for building linked text programmatically; `List.AddItemRuns()` for linked list items
+- **Links example** (`examples/links/`) showcasing external, inline, multi-line, styled, heading, and list item links plus bookmarks and internal navigation
+- **Fonts example** (`examples/fonts/`) demonstrating custom `@font-face` with Unicode (CJK, Cyrillic, Japanese)
+
+### Fixed
+- **Custom `@font-face` family names ignored** — `parseFontFamily` was mapping all names to standard fonts; now preserves custom names for embedded font matching (#16)
+- **`page-break-after` ignored when body has `width: 100%`** — `AreaBreak` elements trapped inside Div wrappers are now hoisted out so the renderer can act on them (#21)
+- **CSS class selectors case-insensitive** — `.myClass` now matches `class="myClass"` regardless of case (#28)
+- **Punctuation spacing at run boundaries** — period/comma after a styled span (e.g. `<b>word</b>.`) no longer gets an extra inter-word space (#25)
+- **Underline continuous across multi-word links** — decoration extends through trailing spaces between consecutive linked/decorated words
+- **`@font-face` family name case mismatch** — font-face names are now lowercased consistently so CSS lookup matches
+
+### Changed
+- **Split `html/converter.go`** into 11 focused files by responsibility (paragraph, table, block, flex, forms, image, list, heading, link, style, helpers) — no behavior changes (#34)
+
 ## [0.4.1] - 2026-03-22
 
 ### Added
