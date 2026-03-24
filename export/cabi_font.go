@@ -82,6 +82,69 @@ func folio_font_courier() C.uint64_t {
 	return C.uint64_t(standardFontHandles[font.Courier.Name()])
 }
 
+// folio_font_helvetica_oblique returns the handle for the Helvetica-Oblique standard font.
+//
+//export folio_font_helvetica_oblique
+func folio_font_helvetica_oblique() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.HelveticaOblique.Name()])
+}
+
+// folio_font_helvetica_bold_oblique returns the handle for the Helvetica-BoldOblique standard font.
+//
+//export folio_font_helvetica_bold_oblique
+func folio_font_helvetica_bold_oblique() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.HelveticaBoldOblique.Name()])
+}
+
+// folio_font_times_italic returns the handle for the Times-Italic standard font.
+//
+//export folio_font_times_italic
+func folio_font_times_italic() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.TimesItalic.Name()])
+}
+
+// folio_font_times_bold_italic returns the handle for the Times-BoldItalic standard font.
+//
+//export folio_font_times_bold_italic
+func folio_font_times_bold_italic() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.TimesBoldItalic.Name()])
+}
+
+// folio_font_courier_bold returns the handle for the Courier-Bold standard font.
+//
+//export folio_font_courier_bold
+func folio_font_courier_bold() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.CourierBold.Name()])
+}
+
+// folio_font_courier_oblique returns the handle for the Courier-Oblique standard font.
+//
+//export folio_font_courier_oblique
+func folio_font_courier_oblique() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.CourierOblique.Name()])
+}
+
+// folio_font_courier_bold_oblique returns the handle for the Courier-BoldOblique standard font.
+//
+//export folio_font_courier_bold_oblique
+func folio_font_courier_bold_oblique() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.CourierBoldOblique.Name()])
+}
+
+// folio_font_symbol returns the handle for the Symbol standard font.
+//
+//export folio_font_symbol
+func folio_font_symbol() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.Symbol.Name()])
+}
+
+// folio_font_zapf_dingbats returns the handle for the ZapfDingbats standard font.
+//
+//export folio_font_zapf_dingbats
+func folio_font_zapf_dingbats() C.uint64_t {
+	return C.uint64_t(standardFontHandles[font.ZapfDingbats.Name()])
+}
+
 // folio_font_load_ttf loads a TrueType font from a file path and returns its handle.
 //
 //export folio_font_load_ttf

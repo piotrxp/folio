@@ -7,6 +7,10 @@
 
 # Go build output
 /folio
+libfolio.h
+
+# C ABI test binary
+export/testdata/test_cabi
 *.wasm
 /samples
 /showcase
