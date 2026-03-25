@@ -8,21 +8,104 @@ permissions:
   contents: write
 
 jobs:
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: libfolio-linux-x86_64.so
+            cc: gcc
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact: libfolio-linux-aarch64.so
+            cc: aarch64-linux-gnu-gcc
+            packages: gcc-aarch64-linux-gnu
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: libfolio-macos-aarch64.dylib
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            artifact: libfolio-macos-x86_64.dylib
+          - os: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            artifact: folio-windows-x86_64.dll
+            cc: x86_64-w64-mingw32-gcc
+            packages: gcc-mingw-w64-x86-64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Install cross-compiler
+        if: matrix.packages
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+
+      - name: Build shared library
+        run: |
+          export CGO_ENABLED=1
+          export GOOS=${{ matrix.goos }}
+          export GOARCH=${{ matrix.goarch }}
+          if [ -n "${{ matrix.cc }}" ]; then
+            export CC=${{ matrix.cc }}
+          fi
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -buildmode=c-shared -o ${{ matrix.artifact }} ./export/
+          ls -lh ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
   release:
+    needs: build-native
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: true
 
       - name: Build WASM
         run: GOOS=js GOARCH=wasm go build -o folio.wasm ./cmd/wasm/
 
+      - name: Download all native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Collect release artifacts
+        run: |
+          mkdir -p release
+          cp folio.wasm release/
+          cp export/folio.h release/
+          find dist -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: folio.wasm
+          files: release/*
           generate_release_notes: true

@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: true
 
       - name: Install qpdf
         run: sudo apt-get update && sudo apt-get install -y qpdf
@@ -35,10 +36,7 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test ./... -race -count=1 -timeout 300s
-
-      - name: Test coverage
-        run: go test ./... -coverprofile=coverage.out -count=1
+        run: go test ./... -race -coverprofile=coverage.out -count=1 -timeout 300s
 
       - name: Check no competitor references in source
         run: |
@@ -46,6 +44,19 @@ jobs:
             echo "ERROR: Source code must not reference competitor libraries"
             exit 1
           fi
+
+      - name: Audit C ABI (header vs exports)
+        run: bash scripts/audit-cabi.sh
+
+      - name: Build shared library
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          CGO_ENABLED=1 go build -ldflags "-X main.version=$VERSION" -buildmode=c-shared -o libfolio.so ./export/
+
+      - name: Test C ABI
+        run: |
+          cc -o export/testdata/test_cabi export/testdata/test_cabi.c -L. -lfolio -Wl,-rpath,.
+          ./export/testdata/test_cabi
 
   fuzz:
     runs-on: ubuntu-latest
@@ -56,6 +67,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: true
 
       - name: Fuzz tokenizer
         run: go test ./reader/... -fuzz=FuzzTokenizer -fuzztime=30s

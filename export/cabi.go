@@ -21,8 +21,12 @@ import (
 	"unsafe"
 )
 
-// version is the library version, set at build time or hardcoded.
-const version = "0.2.0-dev"
+// version is the library version, injected at build time via:
+//
+//	-ldflags "-X main.version=v1.2.3"
+//
+// Falls back to "dev" for local development builds.
+var version = "dev"
 
 // versionCStr is a persistent C string for folio_version().
 // Allocated once, never freed — avoids per-call memory leaks.
